@@ -1,0 +1,63 @@
+# With no flags, gh-anchor only pins floating references: tag-only images get a
+# digest, a branch/tag ARG becomes a commit SHA, partial versions and npm dist-tags
+# become exact versions, and packages passed to corepack get their sha512. Pinned
+# references are left alone. What the Dockerfile uses is recorded in .gh-anchor.toml.
+exec gh-anchor
+stderr 'Processing Dockerfile: Dockerfile'
+stderr '🔧  Authenticated GitHub API access in effect.'
+stderr 'line 1: FROM .*/library/ubuntu:24.04 → .*/library/ubuntu:24.04@sha256:'
+stderr '✅  Updated 5 reference\(s\) in Dockerfile'
+stderr 'Summary for Dockerfile: 8 checked, 5 updated, 2 up to date, 1 skipped \(not in \.gh-anchor\.toml: 1\), 0 failed'
+! stderr '❌'
+cmp Dockerfile expected
+stderr '✅  Recorded 10 value\(s\) in \.gh-anchor\.toml'
+grep '^  tag = "v2.15.1"$' .gh-anchor.toml
+grep '^version = "13.1.0"$' .gh-anchor.toml
+
+# Running again is a no-op.
+exec gh-anchor
+stderr 'ℹ️  No references needed updating in Dockerfile'
+stderr 'Summary for Dockerfile: 8 checked, 0 updated, 7 up to date, 1 skipped'
+stderr 'Total references updated across all files: 0'
+cmp Dockerfile expected
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04 AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d /bin/hadolint /bin/
+COPY --from=base /etc/os-release /tmp/
+ARG ZSH_AUTOSUGGESTIONS_SHA=v0.7.1
+ARG NODE_VERSION=22
+ARG UNCONFIGURED=1.0.0
+RUN npm install --global corepack@0.36.0 \
+    && corepack prepare pnpm@latest --activate
+-- .gh-anchor.toml --
+[images.base]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/hadolint/hadolint"]
+  image = "{{registry}}/hadolint/hadolint"
+
+[packages.corepack]
+
+[packages.pnpm]
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+
+[args.ZSH_AUTOSUGGESTIONS_SHA]
+  datasource = "github-commits"
+  repo       = "zsh-users/zsh-autosuggestions"
+-- expected --
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}} AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1@{{digest "zizmorcore/zizmor" "1.31.1"}} /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d /bin/hadolint /bin/
+COPY --from=base /etc/os-release /tmp/
+ARG ZSH_AUTOSUGGESTIONS_SHA=a3e8a2a5b2c1d3e4f5a6b7c8d9e0f1a2b3c4d5e6
+ARG NODE_VERSION=22.24.0
+ARG UNCONFIGURED=1.0.0
+RUN npm install --global corepack@0.36.0 \
+    && corepack prepare pnpm@13.1.0+{{hash "pnpm" "13.1.0"}} --activate

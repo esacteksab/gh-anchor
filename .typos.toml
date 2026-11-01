@@ -1,0 +1,11 @@
+[default]
+
+  [default.extend-words]
+    ERRO   = "ERRO"
+    fter   = "fter"
+    etry   = "etry"
+    pakage = "pakage" # README: a deliberate typo, showing that unknown config keys are rejected
+
+[files]
+  # Tests use real names typos doesn't know (Node.js "Jod") and deliberate misspellings.
+  extend-exclude = [".goreleaser.yaml", "*_test.go", "testdata/"]

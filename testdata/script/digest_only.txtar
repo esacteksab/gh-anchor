@@ -1,0 +1,32 @@
+# An image pinned by digest only gets the tag that has that digest (like gh-actlock
+# does for a bare commit SHA), so it can be followed. Pin mode adds the tag and keeps
+# the digest; -u then updates it like any tagged image.
+exec gh-anchor
+stderr 'line 1: COPY .*/aquasecurity/trivy@sha256:[0-9a-f]{12}… → .*/aquasecurity/trivy:0.76.1@sha256:'
+cmp Dockerfile pinned
+grep '^  tag = "0.76.1"$' .gh-anchor.toml
+
+exec gh-anchor -u
+cmp Dockerfile updated
+
+# A digest that no version tag has is skipped.
+cp unknown Dockerfile
+cp config.orig .gh-anchor.toml
+exec gh-anchor
+stderr 'skipped \(no version tag has this digest: 1\)'
+cmp Dockerfile unknown
+
+-- Dockerfile --
+COPY --from={{registry}}/aquasecurity/trivy@{{digest "aquasecurity/trivy" "0.76.1"}} /usr/local/bin/trivy /usr/bin/trivy
+-- .gh-anchor.toml --
+[images."{{registry}}/aquasecurity/trivy"]
+  image = "{{registry}}/aquasecurity/trivy"
+-- config.orig --
+[images."{{registry}}/aquasecurity/trivy"]
+  image = "{{registry}}/aquasecurity/trivy"
+-- pinned --
+COPY --from={{registry}}/aquasecurity/trivy:0.76.1@{{digest "aquasecurity/trivy" "0.76.1"}} /usr/local/bin/trivy /usr/bin/trivy
+-- updated --
+COPY --from={{registry}}/aquasecurity/trivy:0.77.0@{{digest "aquasecurity/trivy" "0.77.0"}} /usr/local/bin/trivy /usr/bin/trivy
+-- unknown --
+COPY --from={{registry}}/aquasecurity/trivy@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc /usr/local/bin/trivy /usr/bin/trivy

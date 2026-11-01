@@ -1,0 +1,21 @@
+# clear reports when there is nothing to clear.
+exec gh-anchor clear
+stdout 'does not exist. Nothing to clear.'
+
+# A run creates the HTTP cache.
+exec gh-anchor
+exists $WORK/.cache/gh-anchor
+
+# clear refuses to delete without --force.
+! exec gh-anchor clear
+stderr 'Use the -f or --force flag to confirm deletion'
+exists $WORK/.cache/gh-anchor
+
+exec gh-anchor clear --force
+stdout 'removed successfully'
+! exists $WORK/.cache/gh-anchor
+
+-- Dockerfile --
+FROM scratch
+-- .gh-anchor.toml --
+# Nothing listed yet.

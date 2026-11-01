@@ -1,0 +1,98 @@
+# -u/--update refreshes every digest and moves ARGs, COPY --from images and packages to
+# the newest release within their current major version. FROM base images keep their
+# tag (ubuntu:24.04 stays 24.04 even though 24.10, 25.04 and 26.04 exist). pnpm,
+# passed to corepack, is pinned with its sha512.
+exec gh-anchor -u
+stderr '✅  Updated 11 reference\(s\) in Dockerfile'
+stderr 'Summary for Dockerfile: 11 checked, 11 updated, 0 up to date, 0 skipped, 0 failed'
+! stderr '❌'
+cmp Dockerfile expected
+
+# The config records what the Dockerfile now uses, and a second run changes nothing.
+stderr '✅  Recorded 16 value\(s\) in \.gh-anchor\.toml'
+grep '^  tag = "24.04"$' .gh-anchor.toml
+grep '^  tag = "1.27.3"$' .gh-anchor.toml
+grep '^hash = "sha512\.[0-9a-f]{128}"$' .gh-anchor.toml
+exec gh-anchor -u
+stderr 'Summary for Dockerfile: 11 checked, 0 updated, 11 up to date, 0 skipped, 0 failed'
+cmp Dockerfile expected
+
+-- Dockerfile --
+# hadolint global ignore=DL3008
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS node
+
+ARG NODE_VERSION=22.23.4
+
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+
+ARG ZSH_AUTOSUGGESTIONS_SHA=85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5
+ARG NPM_VERSION=12.2.1
+
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1@sha256:42d409dbb851d4c5d35a058cf042b828bea1e3f2884378c526eb0974780e18d9 /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --link --from={{registry}}/library/golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c /usr/local/go /usr/local/go
+COPY --link --from=node /usr/bin/node /usr/bin/node
+COPY --from={{registry}}/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c /usr/local/bin/trivy /usr/bin/trivy
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d /bin/hadolint /bin/
+
+RUN set -eux \
+    && curl -fsSL "https://registry.npmjs.org/npm/-/npm-${NPM_VERSION}.tgz" -o /tmp/npm.tgz \
+    && npm install --global --prefix /usr/local corepack@0.36.0 \
+    && corepack enable pnpm \
+    && corepack prepare pnpm@12.16.1 --activate
+-- .gh-anchor.toml --
+[images.node]
+  image = "{{registry}}/library/ubuntu"
+
+[images.final]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/library/golang"]
+  image = "{{registry}}/library/golang"
+
+[images."{{registry}}/aquasecurity/trivy"]
+  image = "{{registry}}/aquasecurity/trivy"
+
+[images."{{registry}}/hadolint/hadolint"]
+  image = "{{registry}}/hadolint/hadolint"
+
+[packages.corepack]
+
+[packages.pnpm]
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+  lts        = true
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+
+[args.ZSH_AUTOSUGGESTIONS_SHA]
+  datasource = "github-commits"
+  repo       = "zsh-users/zsh-autosuggestions"
+  track      = "branch"
+-- expected --
+# hadolint global ignore=DL3008
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}} AS node
+
+ARG NODE_VERSION=22.24.0
+
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}}
+
+ARG ZSH_AUTOSUGGESTIONS_SHA=4444444444444444444444444444444444444444
+ARG NPM_VERSION=12.3.0
+
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --link --from={{registry}}/library/golang:1.27.3@{{digest "library/golang" "1.27.3"}} /usr/local/go /usr/local/go
+COPY --link --from=node /usr/bin/node /usr/bin/node
+COPY --from={{registry}}/aquasecurity/trivy:0.77.0@{{digest "aquasecurity/trivy" "0.77.0"}} /usr/local/bin/trivy /usr/bin/trivy
+COPY --from={{registry}}/hadolint/hadolint:v2.15.2@{{digest "hadolint/hadolint" "v2.15.2"}} /bin/hadolint /bin/
+
+RUN set -eux \
+    && curl -fsSL "https://registry.npmjs.org/npm/-/npm-${NPM_VERSION}.tgz" -o /tmp/npm.tgz \
+    && npm install --global --prefix /usr/local corepack@0.37.0 \
+    && corepack enable pnpm \
+    && corepack prepare pnpm@12.17.2+{{hash "pnpm" "12.17.2"}} --activate

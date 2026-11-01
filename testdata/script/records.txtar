@@ -1,0 +1,115 @@
+# gh-anchor records each image's tag and digest and each package's version and hash
+# in .gh-anchor.toml. Values are replaced or added in place: comments, ordering and
+# alignment are kept.
+exec gh-anchor -u
+stderr '✅  Recorded 5 value\(s\) in \.gh-anchor\.toml'
+cmp Dockerfile expected
+cmp .gh-anchor.toml expected.toml
+
+# Running again changes nothing.
+exec gh-anchor -u
+stderr 'No references needed updating in Dockerfile'
+! stderr 'Recorded'
+cmp .gh-anchor.toml expected.toml
+
+# The Dockerfile wins: when it and a record disagree (say, after a hand edit),
+# gh-anchor warns, overwrites the record with the Dockerfile's value, and updates as
+# usual. The final values are recorded.
+cp Dockerfile.edited Dockerfile
+exec gh-anchor -u
+stderr 'WARN ⚠️  line 1: FROM: \[images.base\] recorded tag = "24.04", but the Dockerfile has "26.04": recording the Dockerfile''s'
+stderr 'WARN ⚠️  line 3: RUN pnpm: \[packages.pnpm\] recorded version = "12.17.2", but the Dockerfile has "12.16.1": recording the Dockerfile''s'
+! stderr '❌'
+cmp Dockerfile expected-edited
+cmp .gh-anchor.toml expected-edited.toml
+
+# A hash in the Dockerfile that npm doesn't publish for that version is an error.
+cp Dockerfile.badhash Dockerfile
+exec gh-anchor -u
+stderr '❌  line 3: RUN pnpm: the hash of pnpm@12.17.2 in the Dockerfile doesn''t match the one npm publishes'
+
+# One table can only record one image: two Dockerfiles whose unnamed final stages
+# differ need named stages. Nothing is written.
+! exec gh-anchor -u --config shared.toml one/Dockerfile two/Dockerfile
+stderr '❌  line 1: FROM: \[images.final\] is used with .*/library/ubuntu:26.04 here but .*/library/ubuntu:24.04 on line 1 of one/Dockerfile'
+stderr '❌  No changes made: one table in shared\.toml can only record one image or version\.'
+cmp one/Dockerfile one/expected
+cmp shared.toml shared.orig
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04 AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /usr/bin/zizmor /usr/local/bin/zizmor
+RUN corepack prepare pnpm@12.16.1 --activate
+-- .gh-anchor.toml --
+# The base image stays on the LTS.
+[images.base]
+  image  = "{{registry}}/library/ubuntu"
+  tag    = "24.04"   # LTS
+  digest = ""
+  lts    = true
+
+[images."{{registry}}/zizmorcore/zizmor"]
+image = "{{registry}}/zizmorcore/zizmor"
+
+[packages.pnpm]
+  version = "12.16.1"
+-- expected --
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}} AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+RUN corepack prepare pnpm@12.17.2+{{hash "pnpm" "12.17.2"}} --activate
+-- expected.toml --
+# The base image stays on the LTS.
+[images.base]
+  image  = "{{registry}}/library/ubuntu"
+  tag    = "24.04"   # LTS
+  digest = "{{digest "library/ubuntu" "24.04"}}"
+  lts    = true
+
+[images."{{registry}}/zizmorcore/zizmor"]
+image = "{{registry}}/zizmorcore/zizmor"
+tag = "1.32.0"
+digest = "{{digest "zizmorcore/zizmor" "1.32.0"}}"
+
+[packages.pnpm]
+  version = "12.17.2"
+  hash = "{{hash "pnpm" "12.17.2"}}"
+-- Dockerfile.edited --
+FROM {{registry}}/library/ubuntu:26.04@{{digest "library/ubuntu" "24.04"}} AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+RUN corepack prepare pnpm@12.16.1 --activate
+-- expected-edited --
+FROM {{registry}}/library/ubuntu:26.04@{{digest "library/ubuntu" "26.04"}} AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+RUN corepack prepare pnpm@12.17.2+{{hash "pnpm" "12.17.2"}} --activate
+-- expected-edited.toml --
+# The base image stays on the LTS.
+[images.base]
+  image  = "{{registry}}/library/ubuntu"
+  tag    = "26.04"   # LTS
+  digest = "{{digest "library/ubuntu" "26.04"}}"
+  lts    = true
+
+[images."{{registry}}/zizmorcore/zizmor"]
+image = "{{registry}}/zizmorcore/zizmor"
+tag = "1.32.0"
+digest = "{{digest "zizmorcore/zizmor" "1.32.0"}}"
+
+[packages.pnpm]
+  version = "12.17.2"
+  hash = "{{hash "pnpm" "12.17.2"}}"
+-- Dockerfile.badhash --
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}} AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+RUN corepack prepare pnpm@12.17.2+{{hash "pnpm" "12.16.1"}} --activate
+-- one/Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04
+-- one/expected --
+FROM {{registry}}/library/ubuntu:24.04
+-- two/Dockerfile --
+FROM {{registry}}/library/ubuntu:26.04
+-- shared.toml --
+[images.final]
+  image = "{{registry}}/library/ubuntu"
+-- shared.orig --
+[images.final]
+  image = "{{registry}}/library/ubuntu"

@@ -1,0 +1,37 @@
+# Dockerfiles can be passed as arguments, and --config selects another config file.
+exec gh-anchor -u --config anchor.toml build/Dockerfile Dockerfile.tools
+stderr 'Processing Dockerfile: build/Dockerfile'
+stderr 'Processing Dockerfile: Dockerfile.tools'
+stderr 'Total references updated across all files: 2'
+cmp build/Dockerfile build/expected
+cmp Dockerfile.tools expected.tools
+grep '^  tag = "canary"$' anchor.toml
+grep '^  digest = "sha256:[0-9a-f]{64}"$' anchor.toml
+
+# Paths outside the project root are rejected.
+! exec gh-anchor ../Dockerfile
+stderr 'path "\.\./Dockerfile" contains'
+
+# An explicitly requested config file must exist.
+! exec gh-anchor --config missing.toml build/Dockerfile
+stderr 'reading config missing.toml'
+
+# A missing Dockerfile fails the run.
+! exec gh-anchor --config anchor.toml
+stderr 'Failed to process Dockerfile'
+
+-- anchor.toml --
+[images.final]
+  image = "{{registry}}/aquasecurity/trivy"
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+-- build/Dockerfile --
+ARG NPM_VERSION="12.2.1"
+-- build/expected --
+ARG NPM_VERSION="12.3.0"
+-- Dockerfile.tools --
+FROM {{registry}}/aquasecurity/trivy:canary
+-- expected.tools --
+FROM {{registry}}/aquasecurity/trivy:canary@{{digest "aquasecurity/trivy" "canary"}}

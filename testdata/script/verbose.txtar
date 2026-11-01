@@ -1,0 +1,99 @@
+# -v/--verbose/--debug and ANCHOR_DEBUG log one line per reference: what was looked
+# up and the outcome, plus everything ignored and why.
+exec gh-anchor -u -v
+stderr 'Verbose logging enabled by flag'
+stderr 'Loaded \.gh-anchor\.toml: args \[NODE_VERSION, NPM_VERSION\], images \[.*/library/golang, .*/zizmorcore/zizmor, gh\], packages \[pnpm\]'
+stderr 'found 7 references \(3 images, 3 ARGs, 1 packages\) and 4 other candidates'
+stderr 'line 1: FROM .*/library/ubuntu:24.04@sha256:fe81560990fa…: base image: keeping tag "24.04" \(bump = true or -b changes it\); digest of 24.04 changed to sha256:[0-9a-f]{12}… → updated to '
+stderr 'line 2: ARG BASE_IMAGE: ignored \(ARG has no default value\)'
+stderr 'line 3: FROM \$\{BASE_IMAGE\}: skipped \(uses a variable\)'
+stderr 'line 4: ARG NODE_VERSION 22.24.0: 4 Node.js releases; newest in major 22: 22.24.0 \(current\) → up to date'
+stderr 'line 5: ARG NPM_VERSION 12.2.1: npm npm: 3 versions; newest in major 12: 12.3.0 → updated to 12.3.0'
+stderr 'line 6: ARG USERNAME devcontainer: skipped \(not in \.gh-anchor\.toml\)'
+stderr 'line 7: FROM scratch: ignored \(scratch is not an image\)'
+stderr 'line 8: COPY gh: ignored \(refers to an earlier build stage\)'
+stderr 'line 9: COPY .*/zizmorcore/zizmor:2.0.0@sha256:.*: 3 tags in .*/zizmorcore/zizmor; newest in major 2: 2.0.0 \(current\); digest unchanged → up to date'
+stderr 'line 10: COPY .*/library/golang:1.26.10: 4 tags in .*/library/golang; newest in major 1: 1.27.3; digest of 1.27.3: sha256:[0-9a-f]{12}… → updated to '
+stderr 'line 11: RUN pnpm 13\.1\.0\+sha512\.[0-9a-f]{12}…: npm pnpm: 3 versions, latest 13\.1\.0; newest in major 13: 13\.1\.0 \(current\) → up to date'
+stderr 'Summary for Dockerfile: 8 checked, 3 updated, 3 up to date, 2 skipped \(not in \.gh-anchor\.toml: 1, uses a variable: 1\), 0 failed'
+
+# --debug and ANCHOR_DEBUG do the same.
+cp Dockerfile.orig Dockerfile
+cp anchor.orig.toml .gh-anchor.toml
+exec gh-anchor -u --debug
+stderr 'line 6: ARG USERNAME devcontainer: skipped'
+cp Dockerfile.orig Dockerfile
+cp anchor.orig.toml .gh-anchor.toml
+env ANCHOR_DEBUG=1
+exec gh-anchor -u
+stderr 'line 6: ARG USERNAME devcontainer: skipped'
+
+# Without it, there are no per-reference lines.
+env ANCHOR_DEBUG=
+cp Dockerfile.orig Dockerfile
+cp anchor.orig.toml .gh-anchor.toml
+exec gh-anchor -u
+! stderr 'ARG USERNAME devcontainer: skipped'
+! stderr 'DEBU'
+stderr 'Summary for Dockerfile: 8 checked'
+
+-- .gh-anchor.toml --
+[images.gh]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/library/golang"]
+  image = "{{registry}}/library/golang"
+
+[packages.pnpm]
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+-- anchor.orig.toml --
+[images.gh]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/library/golang"]
+  image = "{{registry}}/library/golang"
+
+[packages.pnpm]
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS gh
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG NODE_VERSION=22.24.0
+ARG NPM_VERSION=12.2.1
+ARG USERNAME=devcontainer
+FROM scratch
+COPY --from=gh /usr/bin/gh /usr/bin/gh
+COPY --from={{registry}}/zizmorcore/zizmor:2.0.0@{{digest "zizmorcore/zizmor" "2.0.0"}} /z /z
+COPY --from={{registry}}/library/golang:1.26.10 /usr/local/go /usr/local/go
+RUN corepack prepare pnpm@13.1.0+{{hash "pnpm" "13.1.0"}} --activate
+-- Dockerfile.orig --
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS gh
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG NODE_VERSION=22.24.0
+ARG NPM_VERSION=12.2.1
+ARG USERNAME=devcontainer
+FROM scratch
+COPY --from=gh /usr/bin/gh /usr/bin/gh
+COPY --from={{registry}}/zizmorcore/zizmor:2.0.0@{{digest "zizmorcore/zizmor" "2.0.0"}} /z /z
+COPY --from={{registry}}/library/golang:1.26.10 /usr/local/go /usr/local/go
+RUN corepack prepare pnpm@13.1.0+{{hash "pnpm" "13.1.0"}} --activate

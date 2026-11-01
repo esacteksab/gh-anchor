@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    ldflags:
+      - -s -w
+      - -X github.com/esacteksab/gh-anchor/cmd.Version={{.Version}}
+      - -X github.com/esacteksab/gh-anchor/cmd.Date={{.Now.Format "2006-01-02-15:04:05-MST"}}
+      - -X github.com/esacteksab/gh-anchor/cmd.Commit={{.ShortCommit}}
+      - -X github.com/esacteksab/gh-anchor/cmd.BuiltBy=goreleaser
+archives:
+  - formats: binary
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Tag }}_
+      {{- .Os }}-
+      {{- .Arch }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # No zip override for Windows: `gh extension install` selects the release asset
+    # whose name ends in "<os>-<arch>" (plus ".exe" on Windows), so every platform
+    # must ship a bare binary.
+changelog:
+  use: github-native
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: true
+  prerelease: auto
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-devel"
+
+report_sizes: true

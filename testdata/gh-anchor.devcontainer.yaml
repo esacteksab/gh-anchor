@@ -1,0 +1,16 @@
+# .gh-anchor.yaml for the devcontainer Dockerfile in testdata/Dockerfile.devcontainer.
+args:
+  NODE_VERSION:
+    datasource: node-version
+    lts: true # --bump only moves to LTS release lines
+  NPM_VERSION:
+    datasource: npm
+    package: npm
+  ZSH_AUTOSUGGESTIONS_SHA:
+    datasource: github-commits
+    repo: zsh-users/zsh-autosuggestions
+    track: branch # the current SHA is the head of master, not a tagged release
+
+images:
+  ubuntu:
+    fixed-tag: true # stay on 24.04 (LTS); only refresh the digest

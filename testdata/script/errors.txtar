@@ -1,0 +1,55 @@
+# An invalid config is reported and the run fails before anything is changed.
+! exec gh-anchor
+stderr 'args.NPM_VERSION: datasource "npm" needs package'
+stderr 'args.TYPO: unknown datasource "pypi"'
+cmp Dockerfile Dockerfile.orig
+
+# Lookup failures are reported per reference; other references are still updated.
+# Nothing is recorded for a reference that failed.
+cp good.toml .gh-anchor.toml
+exec gh-anchor -u
+stderr '❌  line 1: FROM: .*404 Not Found'
+stderr '❌  line 3: RUN left-pad: GET .*: 404 Not Found'
+stderr '✅  Updated 1 reference\(s\) in Dockerfile'
+stderr 'Summary for Dockerfile: 3 checked, 1 updated, 0 up to date, 0 skipped, 2 failed'
+cmp Dockerfile expected
+! grep 'tag|version =' .gh-anchor.toml
+
+# A YAML config is rejected with a TOML parse error.
+cp old.yaml .gh-anchor.toml
+! exec gh-anchor
+stderr 'config \.gh-anchor\.toml: toml:'
+
+
+-- .gh-anchor.toml --
+[args.NPM_VERSION]
+  datasource = "npm"
+
+[args.TYPO]
+  datasource = "pypi"
+-- good.toml --
+[images.final]
+  image = "{{registry}}/library/doesnotexist"
+
+[packages.left-pad]
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+-- old.yaml --
+args:
+  NPM_VERSION:
+    datasource: npm
+    package: npm
+-- Dockerfile --
+FROM {{registry}}/library/doesnotexist:1.0.0
+ARG NPM_VERSION=12.2.1
+RUN npx left-pad@1.3.0
+-- Dockerfile.orig --
+FROM {{registry}}/library/doesnotexist:1.0.0
+ARG NPM_VERSION=12.2.1
+RUN npx left-pad@1.3.0
+-- expected --
+FROM {{registry}}/library/doesnotexist:1.0.0
+ARG NPM_VERSION=12.3.0
+RUN npx left-pad@1.3.0

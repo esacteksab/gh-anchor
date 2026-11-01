@@ -1,0 +1,82 @@
+# bump = true bumps one table on every -u run; the rest stays within its major
+# version and FROM keeps its tag.
+exec gh-anchor -u
+stderr 'Bumping images\."[^"]+/hadolint/hadolint"; updating the rest within its major version'
+cmp Dockerfile expected-u
+
+# -b=keys bumps the tables named (by key, or full name) as well as those with
+# bump = true, and updates the rest. A bumped FROM image moves to a new (LTS) tag.
+cp Dockerfile.orig Dockerfile
+cp config.orig .gh-anchor.toml
+exec gh-anchor -b=pnpm,images.final
+stderr 'Bumping images\."[^"]+/hadolint/hadolint", images\.final, packages\.pnpm; updating the rest within its major version'
+cmp Dockerfile expected-keys
+
+# A bare -b bumps everything.
+cp Dockerfile.orig Dockerfile
+cp config.orig .gh-anchor.toml
+exec gh-anchor -b
+stderr 'Bumping everything \(-b\)'
+grep 'zizmor:2.0.0@' Dockerfile
+
+# Keys must be attached with =: "-b final" reads final as a Dockerfile.
+cp Dockerfile.orig Dockerfile
+! exec gh-anchor -b final
+stderr 'Failed to process final'
+stderr 'To bump final, attach it to the flag: -b=final'
+
+# Unknown and ambiguous keys, and -i without -b or a terminal, are errors.
+! exec gh-anchor -b=python
+stderr '-b: no table named "python"'
+! exec gh-anchor -i
+stderr '-i/--interactive picks what to bump: use it with -b \(gh anchor -b -i\)'
+! exec gh-anchor -b -i
+stderr '-b -i needs a terminal; name the tables instead, e.g. -b=golang,pnpm'
+cmp Dockerfile Dockerfile.orig
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1 /bin/hadolint /bin/
+RUN corepack prepare pnpm@12.16.1 --activate
+-- Dockerfile.orig --
+FROM {{registry}}/library/ubuntu:24.04
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1 /bin/hadolint /bin/
+RUN corepack prepare pnpm@12.16.1 --activate
+-- .gh-anchor.toml --
+[images.final]
+  image = "{{registry}}/library/ubuntu"
+  lts   = true
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/hadolint/hadolint"]
+  image = "{{registry}}/hadolint/hadolint"
+  bump  = true
+
+[packages.pnpm]
+-- config.orig --
+[images.final]
+  image = "{{registry}}/library/ubuntu"
+  lts   = true
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/hadolint/hadolint"]
+  image = "{{registry}}/hadolint/hadolint"
+  bump  = true
+
+[packages.pnpm]
+-- expected-u --
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}}
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v3.0.0@{{digest "hadolint/hadolint" "v3.0.0"}} /bin/hadolint /bin/
+RUN corepack prepare pnpm@12.17.2+{{hash "pnpm" "12.17.2"}} --activate
+-- expected-keys --
+FROM {{registry}}/library/ubuntu:26.04@{{digest "library/ubuntu" "26.04"}}
+COPY --from={{registry}}/zizmorcore/zizmor:1.32.0@{{digest "zizmorcore/zizmor" "1.32.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/hadolint/hadolint:v3.0.0@{{digest "hadolint/hadolint" "v3.0.0"}} /bin/hadolint /bin/
+RUN corepack prepare pnpm@13.1.0+{{hash "pnpm" "13.1.0"}} --activate

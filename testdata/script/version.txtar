@@ -1,0 +1,20 @@
+exec gh-anchor --version
+stdout '^Version '
+
+exec gh-anchor --help
+stdout 'pins and updates the versions and digests in a Dockerfile'
+stdout '-u, --update'
+stdout '-b, --bump'
+stdout '-c, --config string'
+stdout '-v, --verbose'
+stdout '--debug'
+stdout '--version'
+! stdout '-v, --version'
+
+# -v means verbose, not version.
+exec gh-anchor -v
+! stdout '^Version '
+stderr 'Verbose logging enabled by flag'
+
+-- Dockerfile --
+FROM scratch

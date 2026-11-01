@@ -1,0 +1,95 @@
+# --audit reports what an update would change, what the Dockerfile has that the
+# config doesn't list (images, packages and version ARGs) and tables that match
+# nothing. It writes nothing; what it finds is information, not an error.
+exec gh-anchor -u --audit
+stderr 'Would change in Dockerfile:'
+stderr 'line 2: COPY .*/zizmorcore/zizmor:1.31.1 → .*/zizmorcore/zizmor:1.32.0@sha256:'
+stderr 'Not in \.gh-anchor\.toml \(run gh anchor init to add them\):'
+stderr 'line 3: COPY .*/library/golang:1.26.10: no \[images\."[^"]+/library/golang"\] table'
+stderr 'line 4: ARG NPM_VERSION 12.2.1: no \[args\.NPM_VERSION\] table'
+! stderr 'USERNAME'
+stderr 'Would record in \.gh-anchor\.toml:'
+stderr '  \[images\."[^"]+/zizmorcore/zizmor"\] tag = "1.32.0"'
+stderr 'Unused: \[images\.old\] matches nothing in \[Dockerfile\]'
+stderr 'Audit: 2 change\(s\) pending, 4 value\(s\) to record \(0 out of date\), 0 conflict\(s\), 2 not listed, 1 unused table\(s\), 0 failed\. Nothing was written\.'
+stderr 'INFO ℹ️  Run gh anchor again and choose Update \(or pass --yes\) to apply the changes\.'
+! stderr 'Error:'
+cmp Dockerfile Dockerfile.orig
+cmp .gh-anchor.toml config.orig
+
+# Once everything is listed and updated, the audit is clean.
+cp complete.toml .gh-anchor.toml
+exec gh-anchor -u
+exec gh-anchor -u --audit
+stderr 'Audit: 0 change\(s\) pending, 0 value\(s\) to record \(0 out of date\), 0 conflict\(s\), 0 not listed, 0 unused table\(s\), 0 failed'
+stderr 'Everything is current and listed'
+
+# An audit reports out-of-date records too, without writing.
+cp Dockerfile.orig Dockerfile
+exec gh-anchor -u --audit
+stderr 'recorded tag = "1.32.0", but the Dockerfile has "1.31.1"'
+stderr 'Audit: .* \([1-9] out of date\)'
+
+# A failed lookup is an error.
+cp Dockerfile.orig Dockerfile
+cp missing.toml .gh-anchor.toml
+cp missing.Dockerfile Dockerfile
+! exec gh-anchor -u --audit
+stderr 'Audit: .* 1 failed'
+stderr 'the audit couldn''t check everything'
+
+# --audit and --yes can't be combined; without a config there is nothing to audit.
+! exec gh-anchor --audit --yes
+stderr 'none of the others can be'
+rm .gh-anchor.toml
+! exec gh-anchor --audit
+stderr 'no config to audit'
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04 AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /z /z
+COPY --from={{registry}}/library/golang:1.26.10 /go /go
+ARG NPM_VERSION=12.2.1
+ARG USERNAME=dev
+-- Dockerfile.orig --
+FROM {{registry}}/library/ubuntu:24.04 AS base
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /z /z
+COPY --from={{registry}}/library/golang:1.26.10 /go /go
+ARG NPM_VERSION=12.2.1
+ARG USERNAME=dev
+-- .gh-anchor.toml --
+[images.base]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images.old]
+  image = "{{registry}}/library/ubuntu"
+-- config.orig --
+[images.base]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images.old]
+  image = "{{registry}}/library/ubuntu"
+-- missing.toml --
+[images.final]
+  image = "{{registry}}/library/doesnotexist"
+-- missing.Dockerfile --
+FROM {{registry}}/library/doesnotexist:1.0.0
+-- complete.toml --
+[images.base]
+  image = "{{registry}}/library/ubuntu"
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image = "{{registry}}/zizmorcore/zizmor"
+
+[images."{{registry}}/library/golang"]
+  image = "{{registry}}/library/golang"
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"

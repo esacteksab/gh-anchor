@@ -1,0 +1,20 @@
+# Without a .gh-anchor.toml nothing is updated or looked up: gh-anchor only updates
+# what the config lists, and points to gh anchor init.
+exec gh-anchor -u
+stderr 'No \.gh-anchor\.toml found, so nothing was updated\. Run `gh anchor init` to create one that lists what to update\.'
+! stderr 'Processing'
+! exists .cache/gh-anchor
+cmp Dockerfile Dockerfile.orig
+
+# A missing Dockerfile is still an error.
+! exec gh-anchor missing/Dockerfile
+stderr 'Failed to process missing/Dockerfile'
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+ARG NODE_VERSION=22.23.4
+COPY --link --from={{registry}}/library/golang:1.26.10 /usr/local/go /usr/local/go
+-- Dockerfile.orig --
+FROM {{registry}}/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+ARG NODE_VERSION=22.23.4
+COPY --link --from={{registry}}/library/golang:1.26.10 /usr/local/go /usr/local/go

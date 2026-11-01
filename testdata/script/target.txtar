@@ -1,0 +1,49 @@
+# target moves to the newest release in a version line and stays there, across
+# majors, with -u and without bump: Node 22 → 24 even though 26 exists; golang to the
+# 1.26 line even though it is older; and with lts = true a line without LTS releases
+# moves to the next LTS line (23 → 24). A FROM image moves to its target line's newest
+# (LTS) tag. Plain gh anchor (pin) ignores targets.
+exec gh-anchor
+cmp Dockerfile pinned
+exec gh-anchor -u
+stderr 'line 2: ARG NODE_VERSION 22.23.4 → 24.12.0'
+cmp Dockerfile expected
+grep '^  target = 24$' .gh-anchor.toml
+
+# A second run stays on the lines.
+exec gh-anchor -b
+stderr 'Summary for Dockerfile: 4 checked, 0 updated, 4 up to date'
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04
+ARG NODE_VERSION=22.23.4
+ARG OTHER_NODE_VERSION=22.23.4
+COPY --from={{registry}}/library/golang:1.27.3 /go /go
+-- .gh-anchor.toml --
+[images.final]
+  image  = "{{registry}}/library/ubuntu"
+  lts    = true
+  target = "26"
+
+[images."{{registry}}/library/golang"]
+  image  = "{{registry}}/library/golang"
+  target = "1.26"
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+  target = 24
+
+[args.OTHER_NODE_VERSION]
+  datasource = "node-version"
+  lts        = true
+  target     = "23"
+-- pinned --
+FROM {{registry}}/library/ubuntu:24.04@{{digest "library/ubuntu" "24.04"}}
+ARG NODE_VERSION=22.23.4
+ARG OTHER_NODE_VERSION=22.23.4
+COPY --from={{registry}}/library/golang:1.27.3@{{digest "library/golang" "1.27.3"}} /go /go
+-- expected --
+FROM {{registry}}/library/ubuntu:26.04@{{digest "library/ubuntu" "26.04"}}
+ARG NODE_VERSION=24.12.0
+ARG OTHER_NODE_VERSION=24.12.0
+COPY --from={{registry}}/library/golang:1.26.10@{{digest "library/golang" "1.26.10"}} /go /go

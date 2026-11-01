@@ -1,0 +1,141 @@
+# -b/--bump also crosses major versions and moves FROM base images to a new tag.
+# Pre-release and suffixed tags (1.28rc1, v2.15.2-alpine) are never selected.
+# lts = true keeps Node.js on LTS lines and Ubuntu on LTS releases: 24.04 moves to
+# 26.04, skipping 24.10, 25.04, 25.10 and the newer 26.10. The new tags, digests,
+# versions and hashes are recorded in .gh-anchor.toml.
+exec gh-anchor --bump
+stderr '✅  Updated 9 reference\(s\) in Dockerfile'
+stderr 'Summary for Dockerfile: 9 checked, 9 updated, 0 up to date, 0 skipped, 0 failed'
+stderr '✅  Recorded 12 value\(s\) in \.gh-anchor\.toml'
+! stderr '❌'
+cmp Dockerfile expected
+cmp .gh-anchor.toml expected.toml
+
+-- Dockerfile --
+FROM {{registry}}/library/ubuntu:24.04
+ARG NODE_VERSION=22.23.4
+ARG NPM_VERSION=12.2.1
+ARG ZSH_AUTOSUGGESTIONS_SHA=a3e8a2a5b2c1d3e4f5a6b7c8d9e0f1a2b3c4d5e6
+COPY --from={{registry}}/zizmorcore/zizmor:1.31.1 /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/library/golang:1.26.10 /usr/local/go /usr/local/go
+COPY --from={{registry}}/hadolint/hadolint:v2.15.1 /bin/hadolint /bin/
+RUN npm install --global corepack@0.36.0 && corepack prepare pnpm@12.16.1 --activate
+-- .gh-anchor.toml --
+[images.final]
+  image     = "{{registry}}/library/ubuntu"
+  tag       = "24.04"
+  digest    = ""
+  fixed-tag = false
+  lts       = true
+  skip      = false
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image     = "{{registry}}/zizmorcore/zizmor"
+  tag       = "1.31.1"
+  digest    = ""
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[images."{{registry}}/library/golang"]
+  image     = "{{registry}}/library/golang"
+  tag       = "1.26.10"
+  digest    = ""
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[images."{{registry}}/hadolint/hadolint"]
+  image     = "{{registry}}/hadolint/hadolint"
+  tag       = "v2.15.1"
+  digest    = ""
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[packages.corepack]
+  version = "0.36.0"
+  hash    = ""
+  skip    = false
+
+[packages.pnpm]
+  version = "12.16.1"
+  hash    = ""
+  skip    = false
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+  lts        = true
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+
+[args.ZSH_AUTOSUGGESTIONS_SHA]
+  datasource = "github-commits"
+  repo       = "zsh-users/zsh-autosuggestions"
+  track      = "tags"
+-- expected --
+FROM {{registry}}/library/ubuntu:26.04@{{digest "library/ubuntu" "26.04"}}
+ARG NODE_VERSION=24.12.0
+ARG NPM_VERSION=13.0.0
+ARG ZSH_AUTOSUGGESTIONS_SHA=b3e8a2a5b2c1d3e4f5a6b7c8d9e0f1a2b3c4d5e6
+COPY --from={{registry}}/zizmorcore/zizmor:2.0.0@{{digest "zizmorcore/zizmor" "2.0.0"}} /usr/bin/zizmor /usr/local/bin/zizmor
+COPY --from={{registry}}/library/golang:1.27.3@{{digest "library/golang" "1.27.3"}} /usr/local/go /usr/local/go
+COPY --from={{registry}}/hadolint/hadolint:v3.0.0@{{digest "hadolint/hadolint" "v3.0.0"}} /bin/hadolint /bin/
+RUN npm install --global corepack@1.0.0 && corepack prepare pnpm@13.1.0+{{hash "pnpm" "13.1.0"}} --activate
+-- expected.toml --
+[images.final]
+  image     = "{{registry}}/library/ubuntu"
+  tag       = "26.04"
+  digest    = "{{digest "library/ubuntu" "26.04"}}"
+  fixed-tag = false
+  lts       = true
+  skip      = false
+
+[images."{{registry}}/zizmorcore/zizmor"]
+  image     = "{{registry}}/zizmorcore/zizmor"
+  tag       = "2.0.0"
+  digest    = "{{digest "zizmorcore/zizmor" "2.0.0"}}"
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[images."{{registry}}/library/golang"]
+  image     = "{{registry}}/library/golang"
+  tag       = "1.27.3"
+  digest    = "{{digest "library/golang" "1.27.3"}}"
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[images."{{registry}}/hadolint/hadolint"]
+  image     = "{{registry}}/hadolint/hadolint"
+  tag       = "v3.0.0"
+  digest    = "{{digest "hadolint/hadolint" "v3.0.0"}}"
+  fixed-tag = false
+  lts       = false
+  skip      = false
+
+[packages.corepack]
+  version = "1.0.0"
+  hash    = "{{hash "corepack" "1.0.0"}}"
+  skip    = false
+
+[packages.pnpm]
+  version = "13.1.0"
+  hash    = "{{hash "pnpm" "13.1.0"}}"
+  skip    = false
+
+[args.NODE_VERSION]
+  datasource = "node-version"
+  lts        = true
+
+[args.NPM_VERSION]
+  datasource = "npm"
+  package    = "npm"
+
+[args.ZSH_AUTOSUGGESTIONS_SHA]
+  datasource = "github-commits"
+  repo       = "zsh-users/zsh-autosuggestions"
+  track      = "tags"
