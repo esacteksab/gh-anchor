@@ -77,18 +77,27 @@ modernize:
 
 .PHONY: tidy
 tidy:
-	go mod tidy
-	go mod tidy -modfile=go.tool.mod
+				go mod tidy
+				go mod tidy -modfile=go.tool.mod
 
 .PHONY: update-tools
 update-tools:
-	go get -u -modfile=go.tool.mod honnef.co/go/tools/cmd/staticcheck
-	go get -u -modfile=go.tool.mod golang.org/x/vuln/cmd/govulncheck
-	go get -u -modfile=go.tool.mod github.com/segmentio/golines
-	go get -u -modfile=go.tool.mod mvdan.cc/gofumpt
-	go mod tidy -modfile=go.tool.mod
+				go get -u -modfile=go.tool.mod honnef.co/go/tools/cmd/staticcheck
+				go get -u -modfile=go.tool.mod golang.org/x/vuln/cmd/govulncheck
+				go get -u -modfile=go.tool.mod github.com/segmentio/golines
+				go get -u -modfile=go.tool.mod mvdan.cc/gofumpt
+				go mod tidy -modfile=go.tool.mod
 
 .PHONY: update
 update: update-tools
-	go get -u ./...
-	go mod tidy
+				go get -u ./...
+				go mod tidy
+
+.PHONY: update-go-version
+update-go-version:
+		@if [ -z "$(or $(GO_VERSION),$(version))" ]; then \
+				echo "Usage: make update-go-version GO_VERSION=1.25.11"; \
+				echo "   or: make update-go-version version=1.25.11"; \
+				exit 1; \
+		fi
+		./scripts/update-go-version.sh "$(or $(GO_VERSION),$(version))"
